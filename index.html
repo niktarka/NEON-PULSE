@@ -2106,6 +2106,66 @@ on($("#btnEditor"),"click",()=>{ try{ Editor.open(); }catch(_){ show("editor"); 
   else window.addEventListener('load',boot);
 
 })();
+<script>
+/* === HOTFIX: Settings Back button becomes reliably clickable and above overlays === */
+(function settingsBackHotfix(){
+  // 1) Трохи CSS, щоб #settings гарантовано був над фоном і кнопки були клікабельні
+  try{
+    if(!document.getElementById('settingsBackFixCSS')){
+      const st=document.createElement('style'); st.id='settingsBackFixCSS';
+      st.textContent = `
+        #settings{position:relative; z-index:70;}
+        #settings .btn, #settings .btn-small{pointer-events:auto;}
+        /* Адмін-шар не блокує кліки поза панеллю */
+        #admin{pointer-events:none;}
+        #adminPanel{pointer-events:auto; z-index:80;}
+      `;
+      document.head.appendChild(st);
+    }
+  }catch(_){}
+
+  // 2) Надійний бінд для кнопки "Назад" у Settings (на випадок, якщо попередній не підв'язався)
+  function bindSettingsBack(){
+    const btn = document.getElementById('btnBackFromSettings');
+    if(!btn || btn._npBound) return;
+    btn._npBound = true;
+    btn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      try{ if(typeof Game?.endRun==='function') Game.endRun(); else if(typeof Game?.destroy==='function') Game.destroy(); }catch(_){}
+      try{ if(typeof Audio?.stop==='function') Audio.stop(); }catch(_){}
+      show('menu');
+    }, true);
+  }
+
+  // 3) Викликаємо бінд зараз і кожного разу, як відкривають "Настройки"
+  bindSettingsBack();
+
+  // Перехопимо відкриття "Настроек": якщо в коді є openSettings — обгорнемо легким проксі.
+  try{
+    if(typeof openSettings==='function' && !openSettings._patched){
+      const _orig = openSettings;
+      openSettings = function(){
+        const r = _orig.apply(this, arguments);
+        // Після відкриття — гарантуємо бінд і закриємо адмін‑панель (щоб не накривала верхній лівий “Назад”)
+        bindSettingsBack();
+        const panel = document.getElementById('adminPanel');
+        if(panel && panel.style.display!=='none') panel.style.display='none';
+        return r;
+      };
+      openSettings._patched = true;
+    }
+  }catch(_){}
+
+  // 4) На випадок динамічних змін DOM: коли з’являється #settings у фокусі — оновлюємо бінд ще раз
+  try{
+    const mo = new MutationObserver(()=>{
+      if(window.SCENE==='settings') bindSettingsBack();
+    });
+    mo.observe(document.body, {childList:true, subtree:true});
+  }catch(_){}
+})();
+</script>
 </script>
 </body>
 </html>
